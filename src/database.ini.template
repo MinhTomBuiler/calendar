@@ -1,0 +1,6 @@
+[postgresql]
+host=<postgresql host>
+database=<database name>
+user=<database username>
+password=<database password>
+sslmode=require
