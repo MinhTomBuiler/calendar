@@ -1,6 +1,5 @@
 # -*- coding: utf8 -*-
 import datetime
-from datetime import datetime as dtType
 import tkinter as tk
 from db_connect import connect
 from tkinter import messagebox
@@ -9,6 +8,8 @@ import calendar as ca
 import jpholiday
 from db_utils import get_memo, get_memorized_days, get_month_memo
 from common_utils import make_jp_date, make_db_date
+import time, threading
+import pync
 
 from reportlab.platypus import Table, TableStyle
 from reportlab.lib import colors
@@ -31,7 +32,7 @@ def initCalendar():
     #ウインドウを生成（リサイズ不可）
     root = tk.Tk()
     root.title('メモアプリ')
-    root.geometry('1000x600')
+    root.geometry('480x280')
     root.resizable(0, 0)
 
     printButton= tk.Button(text='印刷', command=lambda:printPDF())
@@ -82,10 +83,9 @@ def initCalendar():
     #メモ用のTEXTウィジェットとScrollbarウィジェット
     global text
     text = tk.Text(d_frame, width=30, height=14)
-    text.grid(row=4, column=0)
-    scroll_v = tk.Scrollbar(d_frame, orient=tk.VERTICAL,
-                    command=text.yview)
-    scroll_v.grid(row=4, column=1, sticky=tk.N+tk.S)
+    text.grid(row=4, column=0, sticky=tk.EW)
+    scroll_v = tk.Scrollbar(d_frame, orient=tk.VERTICAL, command=text.yview)
+    scroll_v.grid(row=4, column=1, sticky=tk.NS)
     text["yscrollcommand"] = scroll_v.set
     text.insert('1.0', get_memo(make_db_date(TODAY_YEAR[0], TODAY_MONTH[0], TODAY_DAY)))
 
@@ -114,6 +114,13 @@ def save(t_day):
     messagebox.showinfo('メッセージ', 'データを保存しました')
     disp(0)
 
+def reminder(memorized_days):
+    while True:
+        current_time = datetime.datetime.now()
+        if str(current_time.day) in memorized_days and current_time.hour == 0 and current_time.minute == 16 and current_time.second == 0:
+            pync.notify(get_memo(make_db_date(current_time.year, current_time.month, current_time.day)), title='Calendar')
+        time.sleep(1)
+
 def disp(arg):
     TODAY_MONTH[0] += arg
     if TODAY_MONTH[0] < 1:
@@ -124,8 +131,11 @@ def disp(arg):
 
     cal = ca.Calendar(firstweekday=6)
 
-     # メモした日取得
+    # メモした日取得
     memorized_days = get_memorized_days(TODAY_YEAR[0], TODAY_MONTH[0])
+    # リマインド
+    r = threading.Thread(name='reminder', target=reminder, args=(memorized_days,))
+    r.start()
     # 祝日取得
     national_days = jpholiday.month_holidays(TODAY_YEAR[0], TODAY_MONTH[0])
 
@@ -199,7 +209,7 @@ def printPDF():
     ]
     for index, row in enumerate(get_month_memo(TODAY_YEAR[0], TODAY_MONTH[0])):
         linecount = index + 1
-        displayDate = "{:%Y年%-m月%-d日}".format(dtType.strptime(row[0], "%Y_%m_%d"))
+        displayDate = "{:%Y年%-m月%-d日}".format(datetime.datetime.strptime(row[0], "%Y_%m_%d"))
         data = [ [ displayDate, row[1] ] ]
         table = Table(data, colWidths=(70*mm, 120*mm), rowHeights=8*mm)
         table.setStyle(TableStyle(dataStyles))
